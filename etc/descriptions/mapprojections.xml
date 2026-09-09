@@ -3,7 +3,7 @@
 	<plugin name="AzimuthalMapProjections">
 		<extends>global</extends>
 		<description>
-			Adds three spherical azimuthal (&quot;globe&quot;) map
+			Adds four spherical azimuthal (&quot;globe&quot;) map
 			projections to all SeisComP GUI applications (scmv, scolv,
 			scrttv, scesv, scconfig map preview, ...):
 
@@ -18,6 +18,11 @@
 			- AzimuthalEquidistant: the whole Earth in a disc. Straight-line
 			  distance from the view centre to any point is true to scale,
 			  which makes it well suited to teleseismic distance context.
+
+			- LambertAzimuthalEqualArea: the whole Earth in a disc with
+			  areas preserved everywhere - the azimuthal companion to
+			  Equal Earth, and the basis of EPSG:3035 and common polar /
+			  sea-ice grids.
 
 			Provided by the plugin library &quot;libmapazimuthal&quot;. To
 			enable:
@@ -42,7 +47,8 @@
 
 							With the &quot;libmapazimuthal&quot; plugin loaded
 							these additional values become available:
-							Orthographic, Stereographic, AzimuthalEquidistant.
+							Orthographic, Stereographic, AzimuthalEquidistant,
+							LambertAzimuthalEqualArea.
 						</description>
 					</parameter>
 				</group>

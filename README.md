@@ -4,15 +4,16 @@ Extra map projections for the SeisComP GUI framework (`libseiscomp_gui`),
 built as runtime-loadable plugins.
 
 This repository currently provides one plugin, **`libmapazimuthal`**, with
-three spherical **azimuthal ("globe")** projections — an open alternative
+four spherical **azimuthal ("globe")** projections — an open alternative
 to the "Spherical" projection in gempa's commercial `mapprojections`
-plugin:
+plugin, and one projection for each fundamental map property:
 
-| `scheme.map.projection` | what it is |
-|---|---|
-| `Orthographic` | The globe seen from infinite distance. One hemisphere, undistorted at the view centre, foreshortened toward the rim. |
-| `Stereographic` | Conformal view of one hemisphere — local shapes/angles preserved, area grows toward the rim. |
-| `AzimuthalEquidistant` | The whole Earth in a disc; straight-line distance from the view centre is true to scale (teleseismic distance context). |
+| `scheme.map.projection` | property | what it is |
+|---|---|---|
+| `Orthographic` | perspective | The globe seen from infinite distance. One hemisphere, undistorted at the view centre, foreshortened toward the rim. |
+| `Stereographic` | conformal | One hemisphere with local shapes/angles preserved; area grows toward the rim. |
+| `AzimuthalEquidistant` | equidistant | The whole Earth in a disc; straight-line distance from the view centre is true to scale (teleseismic distance context). |
+| `LambertAzimuthalEqualArea` | equal-area | The whole Earth in a disc with areas preserved everywhere. The azimuthal companion to Equal Earth; the basis of EPSG:3035 and the common polar / sea-ice grids. |
 
 Any GUI application (`scmv`, `scolv`, `scrttv`, `scesv`, `scconfig` map
 preview, …) can then render map tiles, station coordinates and event
@@ -46,6 +47,7 @@ radius and the maximum drawn angular distance:
 | Orthographic | `sin c` | 1 | 90° |
 | Stereographic | `2 tan(c/2)` | 2 | 90° |
 | AzimuthalEquidistant | `c` | π | 180° |
+| LambertAzimuthalEqualArea | `2 sin(c/2)` | 2 | 180° |
 
 `ρ` is normalised by the limb radius so the visible disc always fills the
 viewport, then scaled by the shared zoom. `render()` inverse-projects every
@@ -83,7 +85,7 @@ In `~/.seiscomp/global.cfg` (all GUIs) or a module's `.cfg`:
 
 ```
 plugins = ${plugins}, libmapazimuthal
-scheme.map.projection = Orthographic     # or Stereographic / AzimuthalEquidistant
+scheme.map.projection = Orthographic     # Stereographic / AzimuthalEquidistant / LambertAzimuthalEqualArea
 ```
 
 Verify via *Help → Loaded Plugins*. Where an application offers a

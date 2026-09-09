@@ -151,6 +151,8 @@ int main(int argc, char **argv) {
 	exercise("Stereographic", 1.0);
 	// AzimuthalEquidistant: (90E,0) c=pi/2, rho=pi/2, limb=pi -> fraction 0.5
 	exercise("AzimuthalEquidistant", 0.5);
+	// Lambert equal-area: (90E,0) rho = sqrt(2) , limb = 2 -> fraction 0.70711
+	exercise("LambertAzimuthalEqualArea", 0.70710678);
 
 	std::printf("\n%s\n", g_fail ? "*** REGRESSION FAILED ***" : "all checks passed");
 	return g_fail ? 1 : 0;
