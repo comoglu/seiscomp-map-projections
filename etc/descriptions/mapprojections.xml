@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<seiscomp>
+	<plugin name="AzimuthalMapProjections">
+		<extends>global</extends>
+		<description>
+			Adds four spherical azimuthal (&quot;globe&quot;) map
+			projections to all SeisComP GUI applications (scmv, scolv,
+			scrttv, scesv, scconfig map preview, ...):
+
+			- Orthographic: the globe seen from infinite distance. One
+			  hemisphere is shown, undistorted at the view centre and
+			  increasingly foreshortened towards the rim. Rotate any point,
+			  including a pole, to the centre.
+
+			- Stereographic: a conformal view of one hemisphere - shapes
+			  and angles are preserved locally, area grows towards the rim.
+
+			- AzimuthalEquidistant: the whole Earth in a disc. Straight-line
+			  distance from the view centre to any point is true to scale,
+			  which makes it well suited to teleseismic distance context.
+
+			- LambertAzimuthalEqualArea: the whole Earth in a disc with
+			  areas preserved everywhere - the azimuthal companion to
+			  Equal Earth, and the basis of EPSG:3035 and common polar /
+			  sea-ice grids.
+
+			Provided by the plugin library &quot;libmapazimuthal&quot;. To
+			enable:
+
+			1. Copy libmapazimuthal.so into
+			   &lt;SEISCOMP_ROOT&gt;/share/plugins/
+
+			2. Load the plugin, e.g. in global.cfg:
+			     plugins = ${plugins}, libmapazimuthal
+
+			3. Select a projection in global.cfg or per module, e.g.:
+			     scheme.map.projection = Orthographic
+		</description>
+		<configuration>
+			<group name="scheme">
+				<group name="map">
+					<parameter name="projection" type="string" default="Rectangular">
+						<description>
+							The map projection used to render maps.
+
+							Built-in values: Rectangular, Mercator.
+
+							With the &quot;libmapazimuthal&quot; plugin loaded
+							these additional values become available:
+							Orthographic, Stereographic, AzimuthalEquidistant,
+							LambertAzimuthalEqualArea.
+						</description>
+					</parameter>
+				</group>
+			</group>
+		</configuration>
+	</plugin>
+</seiscomp>
