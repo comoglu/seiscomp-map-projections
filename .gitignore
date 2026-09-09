@@ -1,0 +1,22 @@
+# Build output
+/build/
+*.so
+*.o
+*.a
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+compile_commands.json
+
+# Editor / OS
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+
+# Local notes (not for publication)
+/CLAUDE.md
