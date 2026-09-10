@@ -64,10 +64,15 @@ class AzimuthalProjection : public Projection {
 	protected:
 		//! Radius rho for a point at angular distance c from the centre.
 		//! @p sinc, @p cosc are sin(c), cos(c) (passed to avoid recomputing).
+		//! Used by the (cold) forward path.
 		virtual double radius(double c, double sinc, double cosc) const = 0;
 
-		//! Inverse of radius(): angular distance c for polar radius @p rho.
-		virtual double distance(double rho) const = 0;
+		//! Inverse of radius(): sin and cos of the angular distance c for a
+		//! polar radius @p rho (with @p rho2 == rho*rho passed in to avoid a
+		//! recompute). Closed form for every projection here, so the hot
+		//! inverse / render path needs no trig for this step.
+		virtual void sinCos(double rho, double rho2,
+		                    double &sinc, double &cosc) const = 0;
 
 		//! Polar radius of the visible limb, i.e. radius() at @c cMax().
 		virtual double limbRadius() const = 0;
@@ -124,8 +129,9 @@ class AzimuthalProjection : public Projection {
 		bool forwardNorm(double lonRad, double latRad,
 		                 double &nx, double &ny) const;
 
-		//! Inverse of forwardNorm().
-		bool inverseNorm(double nx, double ny,
+		//! Inverse of forwardNorm(). @p n2 is nx*nx + ny*ny (the caller
+		//! already has it, and the render loop maintains it incrementally).
+		bool inverseNorm(double nx, double ny, double n2,
 		                 double &lonRad, double &latRad) const;
 
 
@@ -137,6 +143,7 @@ class AzimuthalProjection : public Projection {
 		double _phi1;      //!< central parallel [rad]
 		double _sinPhi1;
 		double _cosPhi1;
+		double _limb;      //!< limbRadius()
 		double _ooLimb;    //!< 1 / limbRadius()
 };
 
