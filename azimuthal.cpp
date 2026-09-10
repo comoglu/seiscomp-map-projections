@@ -78,6 +78,7 @@ AzimuthalProjection::AzimuthalProjection()
 , _phi1(0.0)
 , _sinPhi1(0.0)
 , _cosPhi1(1.0)
+, _limb(1.0)
 , _ooLimb(1.0) {}
 // ----------------------------------------------------------------------
 
@@ -105,8 +106,8 @@ void AzimuthalProjection::updateCenter() {
 	_sinPhi1 = std::sin(_phi1);
 	_cosPhi1 = std::cos(_phi1);
 
-	const double lr = limbRadius();
-	_ooLimb = lr > 1.0e-12 ? 1.0 / lr : 1.0;
+	_limb   = limbRadius();
+	_ooLimb = _limb > 1.0e-12 ? 1.0 / _limb : 1.0;
 }
 // ----------------------------------------------------------------------
 
@@ -172,26 +173,28 @@ bool AzimuthalProjection::forwardNorm(double lonRad, double latRad,
 
 // ----------------------------------------------------------------------
 //  Inverse of forwardNorm(): normalized disc coordinates -> lon/lat [rad].
+//  @p n2 == nx*nx + ny*ny. sinCos() gives sin/cos of the angular distance
+//  in closed form, so the only transcendentals left are the asin / atan2
+//  that actually recover the geographic coordinate.
 // ----------------------------------------------------------------------
-bool AzimuthalProjection::inverseNorm(double nx, double ny,
+bool AzimuthalProjection::inverseNorm(double nx, double ny, double n2,
                                       double &lonRad, double &latRad) const {
-	const double rho = std::hypot(nx, ny) / _ooLimb;   // de-normalize
-
-	if ( rho < 1.0e-12 ) {
+	if ( n2 < 1.0e-24 ) {
 		lonRad = _lam0;
 		latRad = _phi1;
 		return true;
 	}
 
-	const double c = distance(rho);
-	if ( c > cMax() + EPS )
-		return false;
+	const double rho2 = n2 * _limb * _limb;
+	const double rho  = std::sqrt(rho2);
+	if ( rho > _limb + EPS )
+		return false;                         // beyond the drawn limb
 
-	const double sinC = std::sin(c);
-	const double cosC = std::cos(c);
+	double sinC, cosC;
+	sinCos(rho, rho2, sinC, cosC);
 
-	const double xp = nx / _ooLimb;
-	const double yp = ny / _ooLimb;
+	const double xp = nx * _limb;
+	const double yp = ny * _limb;
 
 	latRad = std::asin(clampUnit(cosC * _sinPhi1 + yp * sinC * _cosPhi1 / rho));
 	lonRad = _lam0 + std::atan2(xp * sinC,
@@ -234,12 +237,13 @@ bool AzimuthalProjection::unproject(QPointF &geoCoords,
 
 	const double nx = (double(screenCoords.x()) - _halfWidth) / _scale;
 	const double ny = (double(_halfHeight) - screenCoords.y()) / _scale;
+	const double n2 = nx * nx + ny * ny;
 
-	if ( nx * nx + ny * ny > 1.0 + 1.0e-6 )
+	if ( n2 > 1.0 + 1.0e-6 )
 		return false;                       // outside the disc
 
 	double lonRad, latRad;
-	if ( !inverseNorm(nx, ny, lonRad, latRad) )
+	if ( !inverseNorm(nx, ny, n2, lonRad, latRad) )
 		return false;
 
 	double lat = azR2D(latRad);
@@ -340,12 +344,11 @@ void AzimuthalProjection::render(QImage &img, bool highQuality,
 
 	const double MERC_LAT_LIMIT = azD2R(85.05113);
 	const double ooScale = 1.0 / _scale;
+	const double fh      = double(Coord::fraction_half_max);
 
-	// Only the bounding box of the disc can contain map pixels.
+	// The disc is centred in the viewport; its bounding box limits the rows.
 	int y0 = int(_halfHeight - _scale) - 1; if ( y0 < 0 ) y0 = 0;
 	int y1 = int(_halfHeight + _scale) + 1; if ( y1 > h ) y1 = h;
-	int x0 = int(_halfWidth  - _scale) - 1; if ( x0 < 0 ) x0 = 0;
-	int x1 = int(_halfWidth  + _scale) + 1; if ( x1 > w ) x1 = w;
 
 	for ( int iy = 0; iy < h; ++iy ) {
 		QRgb *scan = reinterpret_cast<QRgb*>(img.scanLine(iy));
@@ -355,25 +358,35 @@ void AzimuthalProjection::render(QImage &img, bool highQuality,
 			continue;
 		}
 
-		const double ny = (double(_halfHeight) - iy) * ooScale;
+		const double ny  = (double(_halfHeight) - iy) * ooScale;
+		const double ny2 = ny * ny;
 
-		for ( int ix = 0; ix < w; ++ix ) {
-			if ( ix < x0 || ix >= x1 ) { scan[ix] = transparent; continue; }
+		// Columns inside the disc for this row: nx*nx <= 1 - ny2.
+		int xl = w, xr = -1;
+		if ( ny2 < 1.0 ) {
+			const double halfW = std::sqrt(1.0 - ny2) * _scale;
+			xl = int(std::ceil (_halfWidth - halfW));
+			xr = int(std::floor(_halfWidth + halfW));
+			if ( xl < 0 ) xl = 0;
+			if ( xr > w - 1 ) xr = w - 1;
+		}
 
+		int ix = 0;
+		for ( ; ix < xl; ++ix ) scan[ix] = transparent;
+
+		for ( ; ix <= xr; ++ix ) {
 			const double nx = (double(ix) - _halfWidth) * ooScale;
-			if ( nx * nx + ny * ny > 1.0 ) { scan[ix] = transparent; continue; }
+			const double n2 = nx * nx + ny2;
 
 			double lonRad, latRad;
-			if ( !inverseNorm(nx, ny, lonRad, latRad) ) {
+			if ( !inverseNorm(nx, ny, n2, lonRad, latRad) ) {
 				scan[ix] = transparent;
 				continue;
 			}
 
-			const double lonDeg = normLonDeg(azR2D(lonRad));
-
+			// No wrap needed: getTexel() masks U to its fractional part.
 			Coord u;
-			u.value = Coord::value_type((lonDeg / 180.0 + 1.0)
-			          * double(Coord::fraction_half_max));
+			u.value = Coord::value_type((lonRad * (1.0 / M_PI) + 1.0) * fh);
 
 			Coord v;
 			if ( mercatorTiles ) {
@@ -381,12 +394,10 @@ void AzimuthalProjection::render(QImage &img, bool highQuality,
 				if ( p >  MERC_LAT_LIMIT ) p =  MERC_LAT_LIMIT;
 				else if ( p < -MERC_LAT_LIMIT ) p = -MERC_LAT_LIMIT;
 				const double my = std::asinh(std::tan(p)) / M_PI;
-				v.value = Coord::value_type((1.0 - my)
-				          * double(Coord::fraction_half_max));
+				v.value = Coord::value_type((1.0 - my) * fh);
 			}
 			else {
-				v.value = Coord::value_type((1.0 - azR2D(latRad) / 90.0)
-				          * double(Coord::fraction_half_max));
+				v.value = Coord::value_type((1.0 - latRad * (2.0 / M_PI)) * fh);
 			}
 
 			QRgb c;
@@ -397,6 +408,8 @@ void AzimuthalProjection::render(QImage &img, bool highQuality,
 
 			scan[ix] = c | 0xff000000u;
 		}
+
+		for ( ; ix < w; ++ix ) scan[ix] = transparent;
 	}
 }
 // ----------------------------------------------------------------------

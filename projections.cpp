@@ -36,8 +36,12 @@ class OrthographicProjection : public AzimuthalProjection {
 		double radius(double, double sinc, double) const override {
 			return sinc;
 		}
-		double distance(double rho) const override {
-			return std::asin(rho > 1.0 ? 1.0 : rho < -1.0 ? -1.0 : rho);
+		void sinCos(double rho, double rho2,
+		            double &sinc, double &cosc) const override {
+			// rho = sin c
+			sinc = rho > 1.0 ? 1.0 : rho;
+			const double c2 = 1.0 - rho2;
+			cosc = c2 > 0.0 ? std::sqrt(c2) : 0.0;
 		}
 		double limbRadius() const override { return 1.0; }
 		double cMax() const override       { return M_PI / 2.0; }
@@ -55,8 +59,13 @@ class StereographicProjection : public AzimuthalProjection {
 			const double d = 1.0 + cosc;
 			return d > 1.0e-12 ? 2.0 * sinc / d : 2.0e12;
 		}
-		double distance(double rho) const override {
-			return 2.0 * std::atan(rho * 0.5);
+		void sinCos(double rho, double rho2,
+		            double &sinc, double &cosc) const override {
+			// rho = 2 tan(c/2)  ->  half-angle identities, no trig
+			const double t = rho2 * 0.25;   // tan^2(c/2)
+			const double d = 1.0 + t;
+			sinc = rho / d;
+			cosc = (1.0 - t) / d;
 		}
 		double limbRadius() const override { return 2.0; }   // 2 tan(45 deg)
 		double cMax() const override       { return M_PI / 2.0; }
@@ -73,8 +82,11 @@ class AzimuthalEquidistantProjection : public AzimuthalProjection {
 		double radius(double c, double, double) const override {
 			return c;
 		}
-		double distance(double rho) const override {
-			return rho > M_PI ? M_PI : rho;
+		void sinCos(double rho, double,
+		            double &sinc, double &cosc) const override {
+			// c = rho
+			sinc = std::sin(rho);
+			cosc = std::cos(rho);
 		}
 		double limbRadius() const override { return M_PI; }
 		double cMax() const override       { return M_PI; }
@@ -94,9 +106,12 @@ class LambertAzimuthalEqualAreaProjection : public AzimuthalProjection {
 			double d = 2.0 * (1.0 - cosc);
 			return d > 0.0 ? std::sqrt(d) : 0.0;
 		}
-		double distance(double rho) const override {
-			double h = rho * 0.5;
-			return 2.0 * std::asin(h > 1.0 ? 1.0 : h);
+		void sinCos(double rho, double rho2,
+		            double &sinc, double &cosc) const override {
+			// rho = 2 sin(c/2)  ->  double-angle identities, one sqrt
+			cosc = 1.0 - rho2 * 0.5;
+			const double h = 1.0 - rho2 * 0.25;   // cos^2(c/2)
+			sinc = rho * (h > 0.0 ? std::sqrt(h) : 0.0);
 		}
 		double limbRadius() const override { return 2.0; }   // 2 sin(90 deg)
 		double cMax() const override       { return M_PI; }
