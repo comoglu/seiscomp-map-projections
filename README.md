@@ -19,8 +19,9 @@ Any GUI application (`scmv`, `scolv`, `scrttv`, `scesv`, `scconfig` map
 preview, …) can then render map tiles, station coordinates and event
 markers with them.
 
-> The Equal Earth projection plugin lives in its own repository for now;
-> it may move here later.
+> **See also:** [seiscomp-equalearth](https://github.com/comoglu/seiscomp-equalearth)
+> — the Equal Earth equal-area *pseudocylindrical* whole-world projection,
+> maintained as a separate plugin.
 
 ## How it works
 
