@@ -21,50 +21,64 @@
 
 #include <algorithm>
 #include <cmath>
-#include <math.h>
 #include <vector>
 
-#ifndef M_PI
-#define M_PI 3.14159265358979323846
-#endif
 
-
-namespace Seiscomp {
-namespace Gui {
-namespace Map {
+namespace Seiscomp::Gui::Map {
 
 
 namespace {
 
-inline double azD2R(double d) { return d * (M_PI / 180.0); }
-inline double azR2D(double r) { return r * (180.0 / M_PI); }
+
+const double PI = 3.14159265358979323846;
+
+// Small tolerance for the domain / limb tests.
+const double EPS = 1.0e-9;
+
+
+// Degree <-> radian helpers (seiscomp/math/math.h #defines deg2rad/rad2deg).
+inline double azD2R(double d) {
+	return d * (PI / 180.0);
+}
+
+
+inline double azR2D(double r) {
+	return r * (180.0 / PI);
+}
+
 
 inline double clampUnit(double v) {
-	return v > 1.0 ? 1.0 : v < -1.0 ? -1.0 : v;
+	if ( v >  1.0 ) {
+		return 1.0;
+	}
+	if ( v < -1.0 ) {
+		return -1.0;
+	}
+	return v;
 }
 
-//! Normalize a longitude in degrees to (-180, 180].
-inline double normLonDeg(double lon) {
-	lon = std::fmod(lon + 180.0, 360.0);
-	if ( lon < 0.0 ) lon += 360.0;
-	return lon - 180.0;
-}
 
-//! Interpolation steps for a geographic segment (great circles curve, so
-//! straight segments have to be subdivided). Shared by lineSteps() and the
-//! poly-line projection.
+// Interpolation steps for a geographic segment (great circles curve, so
+// straight segments have to be subdivided). Shared by lineSteps() and the
+// poly-line projection.
 inline int arcSteps(const QPointF &p0, const QPointF &p1) {
 	double dLon = std::fabs(p1.x() - p0.x());
-	if ( dLon > 180.0 ) dLon = 360.0 - dLon;
-	int steps = int((dLon + std::fabs(p1.y() - p0.y())) / 2.0);
-	if ( steps < 2 )   steps = 2;
-	if ( steps > 128 ) steps = 128;
+	if ( dLon > 180.0 ) {
+		dLon = 360.0 - dLon;
+	}
+
+	int steps = static_cast<int>((dLon + std::fabs(p1.y() - p0.y())) / 2.0);
+	if ( steps < 2 ) {
+		steps = 2;
+	}
+	if ( steps > 128 ) {
+		steps = 128;
+	}
 	return steps;
 }
 
-const double EPS = 1.0e-9;
 
-} // anonymous namespace
+}  // anonymous namespace
 
 
 
@@ -72,18 +86,6 @@ const double EPS = 1.0e-9;
 // ======================================================================
 //  AzimuthalProjection
 // ======================================================================
-AzimuthalProjection::AzimuthalProjection()
-: Projection()
-, _lam0(0.0)
-, _phi1(0.0)
-, _sinPhi1(0.0)
-, _cosPhi1(1.0)
-, _limb(1.0)
-, _ooLimb(1.0) {}
-// ----------------------------------------------------------------------
-
-
-
 
 // ----------------------------------------------------------------------
 bool AzimuthalProjection::isRectangular() const {
@@ -91,6 +93,8 @@ bool AzimuthalProjection::isRectangular() const {
 }
 // ----------------------------------------------------------------------
 
+
+// ----------------------------------------------------------------------
 bool AzimuthalProjection::wantsGridAntialiasing() const {
 	return true;
 }
@@ -101,8 +105,8 @@ bool AzimuthalProjection::wantsGridAntialiasing() const {
 
 // ----------------------------------------------------------------------
 void AzimuthalProjection::updateCenter() {
-	_lam0    = _visibleCenter.x() * M_PI;          // (lon/180) -> rad
-	_phi1    = _visibleCenter.y() * (M_PI / 2.0);  // (lat/90)  -> rad
+	_lam0    = _visibleCenter.x() * PI;          // (lon/180) -> rad
+	_phi1    = _visibleCenter.y() * (PI / 2.0);  // (lat/90)  -> rad
 	_sinPhi1 = std::sin(_phi1);
 	_cosPhi1 = std::cos(_phi1);
 
@@ -116,10 +120,15 @@ void AzimuthalProjection::updateCenter() {
 
 // ----------------------------------------------------------------------
 void AzimuthalProjection::centerOn(const QPointF &geoCoords) {
-	double lon = normLonDeg(geoCoords.x());
+	const double lon = Geo::GeoCoordinate::normalizeLon(geoCoords.x());
+
 	double lat = geoCoords.y();
-	if ( lat >  90.0 ) lat =  90.0;   // a pole is a valid centre
-	else if ( lat < -90.0 ) lat = -90.0;
+	if ( lat > 90.0 ) {                // a pole is a valid centre
+		lat = 90.0;
+	}
+	else if ( lat < -90.0 ) {
+		lat = -90.0;
+	}
 
 	_center        = QPointF(lon / 180.0, lat / 90.0);
 	_visibleCenter = _center;
@@ -150,17 +159,20 @@ bool AzimuthalProjection::forwardNorm(double lonRad, double latRad,
 	const double cosDl  = std::cos(dl);
 
 	const double cosC = clampUnit(_sinPhi1 * sinPhi + _cosPhi1 * cosPhi * cosDl);
-	if ( cosC < std::cos(cMax()) - EPS )
+	if ( cosC < std::cos(cMax()) - EPS ) {
 		return false;                       // far side of the globe
+	}
 
 	const double c    = std::acos(cosC);
 	const double sinC = std::sin(c);
 
 	double kp;
-	if ( c < 1.0e-9 )
+	if ( c < 1.0e-9 ) {
 		kp = 1.0;                           // all azimuthals -> 1 at the centre
-	else
+	}
+	else {
 		kp = radius(c, sinC, cosC) / sinC;
+	}
 
 	nx = kp * cosPhi * sinDl * _ooLimb;
 	ny = kp * (_cosPhi1 * sinPhi - _sinPhi1 * cosPhi * cosDl) * _ooLimb;
@@ -187,10 +199,12 @@ bool AzimuthalProjection::inverseNorm(double nx, double ny, double n2,
 
 	const double rho2 = n2 * _limb * _limb;
 	const double rho  = std::sqrt(rho2);
-	if ( rho > _limb + EPS )
+	if ( rho > _limb + EPS ) {
 		return false;                         // beyond the drawn limb
+	}
 
-	double sinC, cosC;
+	double sinC;
+	double cosC;
 	sinCos(rho, rho2, sinC, cosC);
 
 	const double xp = nx * _limb;
@@ -209,19 +223,26 @@ bool AzimuthalProjection::inverseNorm(double nx, double ny, double n2,
 // ----------------------------------------------------------------------
 bool AzimuthalProjection::project(QPoint &screenCoords,
                                   const QPointF &geoCoords) const {
-	if ( _scale <= 0.0 )
+	if ( _scale <= 0.0 ) {
 		return false;
+	}
 
 	double lat = geoCoords.y();
-	if ( lat >  90.0 ) lat =  90.0;
-	else if ( lat < -90.0 ) lat = -90.0;
+	if ( lat > 90.0 ) {
+		lat = 90.0;
+	}
+	else if ( lat < -90.0 ) {
+		lat = -90.0;
+	}
 
-	double nx, ny;
-	if ( !forwardNorm(azD2R(geoCoords.x()), azD2R(lat), nx, ny) )
+	double nx;
+	double ny;
+	if ( !forwardNorm(azD2R(geoCoords.x()), azD2R(lat), nx, ny) ) {
 		return false;
+	}
 
-	screenCoords.setX(int(std::lround(_halfWidth  + nx * _scale)));
-	screenCoords.setY(int(std::lround(_halfHeight - ny * _scale)));
+	screenCoords.setX(static_cast<int>(std::lround(_halfWidth  + nx * _scale)));
+	screenCoords.setY(static_cast<int>(std::lround(_halfHeight - ny * _scale)));
 	return true;
 }
 // ----------------------------------------------------------------------
@@ -232,25 +253,33 @@ bool AzimuthalProjection::project(QPoint &screenCoords,
 // ----------------------------------------------------------------------
 bool AzimuthalProjection::unproject(QPointF &geoCoords,
                                     const QPoint &screenCoords) const {
-	if ( _scale <= 0.0 )
+	if ( _scale <= 0.0 ) {
 		return false;
+	}
 
-	const double nx = (double(screenCoords.x()) - _halfWidth) / _scale;
-	const double ny = (double(_halfHeight) - screenCoords.y()) / _scale;
+	const double nx = (static_cast<double>(screenCoords.x()) - _halfWidth) / _scale;
+	const double ny = (static_cast<double>(_halfHeight) - screenCoords.y()) / _scale;
 	const double n2 = nx * nx + ny * ny;
 
-	if ( n2 > 1.0 + 1.0e-6 )
+	if ( n2 > 1.0 + 1.0e-6 ) {
 		return false;                       // outside the disc
+	}
 
-	double lonRad, latRad;
-	if ( !inverseNorm(nx, ny, n2, lonRad, latRad) )
+	double lonRad;
+	double latRad;
+	if ( !inverseNorm(nx, ny, n2, lonRad, latRad) ) {
 		return false;
+	}
 
 	double lat = azR2D(latRad);
-	if ( lat >  90.0 ) lat =  90.0;
-	else if ( lat < -90.0 ) lat = -90.0;
+	if ( lat > 90.0 ) {
+		lat = 90.0;
+	}
+	else if ( lat < -90.0 ) {
+		lat = -90.0;
+	}
 
-	geoCoords.setX(normLonDeg(azR2D(lonRad)));
+	geoCoords.setX(Geo::GeoCoordinate::normalizeLon(azR2D(lonRad)));
 	geoCoords.setY(lat);
 	return true;
 }
@@ -282,8 +311,8 @@ bool AzimuthalProjection::lineTo(QPainter &painter, const QPointF &to) {
 	if ( fromValid && visible ) {
 		// screen-jump guard: an azimuthal edge that wraps past the antipode
 		// would otherwise draw a chord straight across the disc
-		const double jump = std::hypot(double(p.x() - from.x()),
-		                               double(p.y() - from.y()));
+		const double jump = std::hypot(static_cast<double>(p.x() - from.x()),
+		                               static_cast<double>(p.y() - from.y()));
 		const bool onScreen = (from.y() >= 0 || p.y() >= 0)
 		                   && (from.y() < _height || p.y() < _height)
 		                   && (from.x() >= 0 || p.x() >= 0)
@@ -317,8 +346,9 @@ void AzimuthalProjection::render(QImage &img, bool highQuality,
 	}
 
 	qreal radius = _screenRadius * _radius;        // _radius == zoom
-	if ( radius < _screenRadius )                  // never smaller than the viewport
+	if ( radius < _screenRadius ) {                // never smaller than the viewport
 		radius = _screenRadius;
+	}
 
 	setVisibleRadius(radius / _screenRadius);      // -> _scale == radius
 	updateCenter();
@@ -335,50 +365,74 @@ void AzimuthalProjection::render(QImage &img, bool highQuality,
 	// Texture pyramid level (same heuristic as the built-in projections).
 	qreal pixelRatio = 2.0 * _scale / cache->tileHeight();
 	const bool mercatorTiles = cache->isMercatorProjected();
-	if ( mercatorTiles )
+	if ( mercatorTiles ) {
 		pixelRatio *= 2;
-	if ( pixelRatio < 1.0 ) pixelRatio = 1.0;
-	int level = int(std::log(pixelRatio) / std::log(2.0) + 0.7);
-	if ( level < 0 ) level = 0;
-	if ( level > cache->maxLevel() ) level = cache->maxLevel();
+	}
+	if ( pixelRatio < 1.0 ) {
+		pixelRatio = 1.0;
+	}
 
-	const double MERC_LAT_LIMIT = azD2R(85.05113);
+	int level = static_cast<int>(std::log(pixelRatio) / std::log(2.0) + 0.7);
+	if ( level < 0 ) {
+		level = 0;
+	}
+	if ( level > cache->maxLevel() ) {
+		level = cache->maxLevel();
+	}
+
+	const double mercLatLimit = azD2R(85.05113);
 	const double ooScale = 1.0 / _scale;
-	const double fh      = double(Coord::fraction_half_max);
+	const auto   fh      = static_cast<double>(Coord::fraction_half_max);
 
 	// The disc is centred in the viewport; its bounding box limits the rows.
-	int y0 = int(_halfHeight - _scale) - 1; if ( y0 < 0 ) y0 = 0;
-	int y1 = int(_halfHeight + _scale) + 1; if ( y1 > h ) y1 = h;
+	int y0 = static_cast<int>(_halfHeight - _scale) - 1;
+	if ( y0 < 0 ) {
+		y0 = 0;
+	}
+	int y1 = static_cast<int>(_halfHeight + _scale) + 1;
+	if ( y1 > h ) {
+		y1 = h;
+	}
 
 	for ( int iy = 0; iy < h; ++iy ) {
 		QRgb *scan = reinterpret_cast<QRgb*>(img.scanLine(iy));
 
 		if ( iy < y0 || iy >= y1 ) {
-			for ( int ix = 0; ix < w; ++ix ) scan[ix] = transparent;
+			for ( int ix = 0; ix < w; ++ix ) {
+				scan[ix] = transparent;
+			}
 			continue;
 		}
 
-		const double ny  = (double(_halfHeight) - iy) * ooScale;
+		const double ny  = (static_cast<double>(_halfHeight) - iy) * ooScale;
 		const double ny2 = ny * ny;
 
 		// Columns inside the disc for this row: nx*nx <= 1 - ny2.
-		int xl = w, xr = -1;
+		int xl = w;
+		int xr = -1;
 		if ( ny2 < 1.0 ) {
 			const double halfW = std::sqrt(1.0 - ny2) * _scale;
-			xl = int(std::ceil (_halfWidth - halfW));
-			xr = int(std::floor(_halfWidth + halfW));
-			if ( xl < 0 ) xl = 0;
-			if ( xr > w - 1 ) xr = w - 1;
+			xl = static_cast<int>(std::ceil (_halfWidth - halfW));
+			xr = static_cast<int>(std::floor(_halfWidth + halfW));
+			if ( xl < 0 ) {
+				xl = 0;
+			}
+			if ( xr > w - 1 ) {
+				xr = w - 1;
+			}
 		}
 
 		int ix = 0;
-		for ( ; ix < xl; ++ix ) scan[ix] = transparent;
+		for ( ; ix < xl; ++ix ) {
+			scan[ix] = transparent;
+		}
 
 		for ( ; ix <= xr; ++ix ) {
-			const double nx = (double(ix) - _halfWidth) * ooScale;
+			const double nx = (static_cast<double>(ix) - _halfWidth) * ooScale;
 			const double n2 = nx * nx + ny2;
 
-			double lonRad, latRad;
+			double lonRad;
+			double latRad;
 			if ( !inverseNorm(nx, ny, n2, lonRad, latRad) ) {
 				scan[ix] = transparent;
 				continue;
@@ -386,30 +440,49 @@ void AzimuthalProjection::render(QImage &img, bool highQuality,
 
 			// No wrap needed: getTexel() masks U to its fractional part.
 			Coord u;
-			u.value = Coord::value_type((lonRad * (1.0 / M_PI) + 1.0) * fh);
+			u.value = static_cast<Coord::value_type>((lonRad * (1.0 / PI) + 1.0) * fh);
 
 			Coord v;
 			if ( mercatorTiles ) {
 				double p = latRad;
-				if ( p >  MERC_LAT_LIMIT ) p =  MERC_LAT_LIMIT;
-				else if ( p < -MERC_LAT_LIMIT ) p = -MERC_LAT_LIMIT;
-				const double my = std::asinh(std::tan(p)) / M_PI;
-				v.value = Coord::value_type((1.0 - my) * fh);
+				if ( p > mercLatLimit ) {
+					p = mercLatLimit;
+				}
+				else if ( p < -mercLatLimit ) {
+					p = -mercLatLimit;
+				}
+				const double my = std::asinh(std::tan(p)) / PI;
+				v.value = static_cast<Coord::value_type>((1.0 - my) * fh);
 			}
 			else {
-				v.value = Coord::value_type((1.0 - latRad * (2.0 / M_PI)) * fh);
+				v.value = static_cast<Coord::value_type>((1.0 - latRad * (2.0 / PI)) * fh);
+			}
+
+			// V runs across the texture as [0, fraction_max). The far pole
+			// evaluates to exactly fraction_max, whose bit 32 getTexel()
+			// masks off - that would wrap the antipodal pixel back onto the
+			// opposite edge of the texture. Keep it in range.
+			if ( v.value < 0 ) {
+				v.value = 0;
+			}
+			else if ( v.value >= static_cast<Coord::value_type>(Coord::fraction_max) ) {
+				v.value = static_cast<Coord::value_type>(Coord::fraction_max) - 1;
 			}
 
 			QRgb c;
-			if ( highQuality )
+			if ( highQuality ) {
 				cache->getTexelBilinear(c, u, v, level);
-			else
+			}
+			else {
 				cache->getTexel(c, u, v, level);
+			}
 
-			scan[ix] = c | 0xff000000u;
+			scan[ix] = c | 0xff000000U;
 		}
 
-		for ( ; ix < w; ++ix ) scan[ix] = transparent;
+		for ( ; ix < w; ++ix ) {
+			scan[ix] = transparent;
+		}
 	}
 }
 // ----------------------------------------------------------------------
@@ -424,46 +497,71 @@ void AzimuthalProjection::render(QImage &img, bool highQuality,
 // ----------------------------------------------------------------------
 void AzimuthalProjection::updateBoundingBox() {
 	_mapBoundingBox.reset();
-	if ( _width <= 0 || _height <= 0 || _scale <= 0.0 )
+	if ( _width <= 0 || _height <= 0 || _scale <= 0.0 ) {
 		return;
+	}
 
 	const double centerLon = _visibleCenter.x() * 180.0;
 	const int    step      = std::max(1, std::min(_width, _height) / 64);
 
-	bool   have = false;
-	double west = 0.0, east = 0.0, north = -90.0, south = 90.0;
+	bool   have  = false;
+	double west  = 0.0;
+	double east  = 0.0;
+	double north = -90.0;
+	double south = 90.0;
 
 	QPointF g;
 	for ( int y = 0; y < _height; y += step ) {
 		for ( int x = 0; x < _width; x += step ) {
-			if ( !unproject(g, QPoint(x, y)) )
+			if ( !unproject(g, QPoint(x, y)) ) {
 				continue;
+			}
 
 			const double dLon = Geo::GeoCoordinate::distanceLon(g.x(), centerLon);
-			if ( !have ) { west = east = dLon; have = true; }
-			else {
-				if ( dLon < west ) west = dLon;
-				if ( dLon > east ) east = dLon;
+			if ( !have ) {
+				west = dLon;
+				east = dLon;
+				have = true;
 			}
-			if ( g.y() > north ) north = g.y();
-			if ( g.y() < south ) south = g.y();
+			else {
+				if ( dLon < west ) {
+					west = dLon;
+				}
+				if ( dLon > east ) {
+					east = dLon;
+				}
+			}
+			if ( g.y() > north ) {
+				north = g.y();
+			}
+			if ( g.y() < south ) {
+				south = g.y();
+			}
 		}
 	}
 
 	if ( !have ) {
-		_mapBoundingBox.west  = -180.0; _mapBoundingBox.east  = 180.0;
-		_mapBoundingBox.south =  -90.0; _mapBoundingBox.north =  90.0;
+		_mapBoundingBox.west  = -180.0;
+		_mapBoundingBox.east  =  180.0;
+		_mapBoundingBox.south =  -90.0;
+		_mapBoundingBox.north =   90.0;
 		return;
 	}
 
 	QPoint p;
-	const bool nPole = project(p, QPointF(0.0,  90.0)) &&
-	                   p.x() >= 0 && p.x() < _width && p.y() >= 0 && p.y() < _height;
-	const bool sPole = project(p, QPointF(0.0, -90.0)) &&
-	                   p.x() >= 0 && p.x() < _width && p.y() >= 0 && p.y() < _height;
+	const bool nPole = project(p, QPointF(0.0, 90.0))
+	                && p.x() >= 0 && p.x() < _width
+	                && p.y() >= 0 && p.y() < _height;
+	const bool sPole = project(p, QPointF(0.0, -90.0))
+	                && p.x() >= 0 && p.x() < _width
+	                && p.y() >= 0 && p.y() < _height;
 
-	if ( nPole ) north = 90.0;
-	if ( sPole ) south = -90.0;
+	if ( nPole ) {
+		north = 90.0;
+	}
+	if ( sPole ) {
+		south = -90.0;
+	}
 
 	if ( nPole || sPole || (east - west) >= 359.0 ) {
 		_mapBoundingBox.west = -180.0;
@@ -490,35 +588,47 @@ void AzimuthalProjection::updateBoundingBox() {
 // ----------------------------------------------------------------------
 bool AzimuthalProjection::project(QPainterPath &screenPath, size_t n,
                                   const Geo::GeoCoordinate *poly, bool closed,
-                                  uint minPixelDist, ClipHint) const {
-	if ( n < 2 || !poly || _scale <= 0.0 )
-		return false;
+                                  uint minPixelDist, ClipHint hint) const {
+	(void)hint;
 
-	const double minDeg = (minPixelDist > 0)
-	                      ? double(minPixelDist) / pixelPerDegree()
+	if ( n < 2 || !poly || _scale <= 0.0 ) {
+		return false;
+	}
+
+	const double minDeg = minPixelDist > 0
+	                      ? static_cast<double>(minPixelDist) / pixelPerDegree()
 	                      : 0.0;
 
 	// Decimate to the requested roughness first.
 	std::vector<QPointF> v;
 	v.reserve(n);
-	v.push_back(QPointF(poly[0].lon, poly[0].lat));
+	v.emplace_back(poly[0].lon, poly[0].lat);
 	for ( size_t i = 1; i < n; ++i ) {
 		double dLon = poly[i].lon - v.back().x();
-		if ( dLon >  180.0 ) dLon -= 360.0;
-		else if ( dLon < -180.0 ) dLon += 360.0;
-		const bool keepLast = !closed && (i == n - 1);
+		if ( dLon > 180.0 ) {
+			dLon -= 360.0;
+		}
+		else if ( dLon < -180.0 ) {
+			dLon += 360.0;
+		}
+
+		const bool keepLast = !closed && i == n - 1;
 		if ( !keepLast && minDeg > 0.0
 		  && std::fabs(dLon) <= minDeg
-		  && std::fabs(poly[i].lat - v.back().y()) <= minDeg )
+		  && std::fabs(poly[i].lat - v.back().y()) <= minDeg ) {
 			continue;
-		v.push_back(QPointF(v.back().x() + dLon, poly[i].lat));
+		}
+		v.emplace_back(v.back().x() + dLon, poly[i].lat);
 	}
-	if ( closed && v.size() > 2 )
+	if ( closed && v.size() > 2 ) {
 		v.push_back(v.front());
-	if ( v.size() < 2 )
+	}
+	if ( v.size() < 2 ) {
 		return false;
+	}
 
-	QPoint p, prev;
+	QPoint p;
+	QPoint prev;
 	bool penDown = false;
 	bool any = false;
 
@@ -530,26 +640,28 @@ bool AzimuthalProjection::project(QPainterPath &screenPath, size_t n,
 
 	// NOTE: 'emit' is a Qt macro - do not name a local that.
 	auto plot = [&](double lon, double lat) {
-		if ( project(p, QPointF(lon, lat)) ) {
-			if ( penDown && std::hypot(double(p.x() - prev.x()),
-			                           double(p.y() - prev.y())) <= maxJump )
-				screenPath.lineTo(p);
-			else
-				screenPath.moveTo(p);
-			penDown = true;
-			prev = p;
-			any = true;
+		if ( !project(p, QPointF(lon, lat)) ) {
+			penDown = false;                  // pen up: the arc leaves the disc
+			return;
+		}
+
+		if ( penDown && std::hypot(static_cast<double>(p.x() - prev.x()),
+		                           static_cast<double>(p.y() - prev.y())) <= maxJump ) {
+			screenPath.lineTo(p);
 		}
 		else {
-			penDown = false;                  // pen up: the arc leaves the disc
+			screenPath.moveTo(p);
 		}
+		penDown = true;
+		prev = p;
+		any = true;
 	};
 
 	plot(v[0].x(), v[0].y());
 	for ( size_t i = 1; i < v.size(); ++i ) {
 		const int steps = arcSteps(v[i - 1], v[i]);
 		for ( int s = 1; s <= steps; ++s ) {
-			const double t = double(s) / steps;
+			const double t = static_cast<double>(s) / steps;
 			plot(v[i - 1].x() + t * (v[i].x() - v[i - 1].x()),
 			     v[i - 1].y() + t * (v[i].y() - v[i - 1].y()));
 		}
@@ -562,6 +674,4 @@ bool AzimuthalProjection::project(QPainterPath &screenPath, size_t n,
 
 
 
-}
-}
 }

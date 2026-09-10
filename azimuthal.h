@@ -28,9 +28,7 @@
 #include <seiscomp/gui/map/projection.h>
 
 
-namespace Seiscomp {
-namespace Gui {
-namespace Map {
+namespace Seiscomp::Gui::Map {
 
 
 /**
@@ -51,16 +49,16 @@ namespace Map {
  * the globe - are reported as not visible / rendered transparent.
  */
 class AzimuthalProjection : public Projection {
-	// ------------------------------------------------------------------
+	// ----------------------------------------------------------------------
 	//  X'struction
-	// ------------------------------------------------------------------
+	// ----------------------------------------------------------------------
 	public:
-		AzimuthalProjection();
+		AzimuthalProjection() = default;
 
 
-	// ------------------------------------------------------------------
+	// ----------------------------------------------------------------------
 	//  Per-projection radial functions (implemented by subclasses)
-	// ------------------------------------------------------------------
+	// ----------------------------------------------------------------------
 	protected:
 		//! Radius rho for a point at angular distance c from the centre.
 		//! @p sinc, @p cosc are sin(c), cos(c) (passed to avoid recomputing).
@@ -81,9 +79,9 @@ class AzimuthalProjection : public Projection {
 		virtual double cMax() const = 0;
 
 
-	// ------------------------------------------------------------------
+	// ----------------------------------------------------------------------
 	//  Projection interface
-	// ------------------------------------------------------------------
+	// ----------------------------------------------------------------------
 	public:
 		bool isRectangular() const override;
 		bool wantsGridAntialiasing() const override;
@@ -109,17 +107,17 @@ class AzimuthalProjection : public Projection {
 		             uint minPixelDist, ClipHint hint = NoClip) const override;
 
 
-	// ------------------------------------------------------------------
+	// ----------------------------------------------------------------------
 	//  Rasterization
-	// ------------------------------------------------------------------
+	// ----------------------------------------------------------------------
 	protected:
 		void render(QImage &img, bool highQuality,
 		            TextureCache *cache) override;
 
 
-	// ------------------------------------------------------------------
+	// ----------------------------------------------------------------------
 	//  Helpers
-	// ------------------------------------------------------------------
+	// ----------------------------------------------------------------------
 	private:
 		void updateCenter();
 
@@ -135,21 +133,19 @@ class AzimuthalProjection : public Projection {
 		                 double &lonRad, double &latRad) const;
 
 
-	// ------------------------------------------------------------------
+	// ----------------------------------------------------------------------
 	//  Members (view centre, precomputed)
-	// ------------------------------------------------------------------
+	// ----------------------------------------------------------------------
 	private:
-		double _lam0;      //!< central meridian [rad]
-		double _phi1;      //!< central parallel [rad]
-		double _sinPhi1;
-		double _cosPhi1;
-		double _limb;      //!< limbRadius()
-		double _ooLimb;    //!< 1 / limbRadius()
+		double _lam0{0.0};      //!< central meridian [rad]
+		double _phi1{0.0};      //!< central parallel [rad]
+		double _sinPhi1{0.0};
+		double _cosPhi1{1.0};
+		double _limb{1.0};      //!< limbRadius()
+		double _ooLimb{1.0};    //!< 1 / limbRadius()
 };
 
 
-}
-}
 }
 
 
