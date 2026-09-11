@@ -16,16 +16,16 @@
 #include <seiscomp/core/plugin.h>
 
 #include <cmath>
-#include <math.h>
-
-#ifndef M_PI
-#define M_PI 3.14159265358979323846
-#endif
 
 
-namespace Seiscomp {
-namespace Gui {
-namespace Map {
+namespace Seiscomp::Gui::Map {
+
+
+namespace {
+
+const double PI = 3.14159265358979323846;
+
+}
 
 
 // ======================================================================
@@ -33,7 +33,9 @@ namespace Map {
 // ======================================================================
 class OrthographicProjection : public AzimuthalProjection {
 	protected:
-		double radius(double, double sinc, double) const override {
+		double radius(double c, double sinc, double cosc) const override {
+			(void)c;
+			(void)cosc;
 			return sinc;
 		}
 		void sinCos(double rho, double rho2,
@@ -43,8 +45,12 @@ class OrthographicProjection : public AzimuthalProjection {
 			const double c2 = 1.0 - rho2;
 			cosc = c2 > 0.0 ? std::sqrt(c2) : 0.0;
 		}
-		double limbRadius() const override { return 1.0; }
-		double cMax() const override       { return M_PI / 2.0; }
+		double limbRadius() const override {
+			return 1.0;
+		}
+		double cMax() const override {
+			return PI / 2.0;
+		}
 };
 
 REGISTER_PROJECTION_INTERFACE(OrthographicProjection, "Orthographic");
@@ -55,7 +61,8 @@ REGISTER_PROJECTION_INTERFACE(OrthographicProjection, "Orthographic");
 // ======================================================================
 class StereographicProjection : public AzimuthalProjection {
 	protected:
-		double radius(double, double sinc, double cosc) const override {
+		double radius(double c, double sinc, double cosc) const override {
+			(void)c;
 			const double d = 1.0 + cosc;
 			return d > 1.0e-12 ? 2.0 * sinc / d : 2.0e12;
 		}
@@ -67,8 +74,12 @@ class StereographicProjection : public AzimuthalProjection {
 			sinc = rho / d;
 			cosc = (1.0 - t) / d;
 		}
-		double limbRadius() const override { return 2.0; }   // 2 tan(45 deg)
-		double cMax() const override       { return M_PI / 2.0; }
+		double limbRadius() const override {
+			return 2.0;                     // 2 tan(45 deg)
+		}
+		double cMax() const override {
+			return PI / 2.0;
+		}
 };
 
 REGISTER_PROJECTION_INTERFACE(StereographicProjection, "Stereographic");
@@ -79,17 +90,24 @@ REGISTER_PROJECTION_INTERFACE(StereographicProjection, "Stereographic");
 // ======================================================================
 class AzimuthalEquidistantProjection : public AzimuthalProjection {
 	protected:
-		double radius(double c, double, double) const override {
+		double radius(double c, double sinc, double cosc) const override {
+			(void)sinc;
+			(void)cosc;
 			return c;
 		}
-		void sinCos(double rho, double,
+		void sinCos(double rho, double rho2,
 		            double &sinc, double &cosc) const override {
 			// c = rho
+			(void)rho2;
 			sinc = std::sin(rho);
 			cosc = std::cos(rho);
 		}
-		double limbRadius() const override { return M_PI; }
-		double cMax() const override       { return M_PI; }
+		double limbRadius() const override {
+			return PI;
+		}
+		double cMax() const override {
+			return PI;
+		}
 };
 
 REGISTER_PROJECTION_INTERFACE(AzimuthalEquidistantProjection,
@@ -102,27 +120,31 @@ REGISTER_PROJECTION_INTERFACE(AzimuthalEquidistantProjection,
 // ======================================================================
 class LambertAzimuthalEqualAreaProjection : public AzimuthalProjection {
 	protected:
-		double radius(double, double, double cosc) const override {
-			double d = 2.0 * (1.0 - cosc);
+		double radius(double c, double sinc, double cosc) const override {
+			(void)c;
+			(void)sinc;
+			const double d = 2.0 * (1.0 - cosc);
 			return d > 0.0 ? std::sqrt(d) : 0.0;
 		}
 		void sinCos(double rho, double rho2,
 		            double &sinc, double &cosc) const override {
 			// rho = 2 sin(c/2)  ->  double-angle identities, one sqrt
 			cosc = 1.0 - rho2 * 0.5;
-			const double h = 1.0 - rho2 * 0.25;   // cos^2(c/2)
-			sinc = rho * (h > 0.0 ? std::sqrt(h) : 0.0);
+			const double hh = 1.0 - rho2 * 0.25;   // cos^2(c/2)
+			sinc = rho * (hh > 0.0 ? std::sqrt(hh) : 0.0);
 		}
-		double limbRadius() const override { return 2.0; }   // 2 sin(90 deg)
-		double cMax() const override       { return M_PI; }
+		double limbRadius() const override {
+			return 2.0;                            // 2 sin(90 deg)
+		}
+		double cMax() const override {
+			return PI;
+		}
 };
 
 REGISTER_PROJECTION_INTERFACE(LambertAzimuthalEqualAreaProjection,
                               "LambertAzimuthalEqualArea");
 
 
-}
-}
 }
 
 
